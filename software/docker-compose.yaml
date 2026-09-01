@@ -1,0 +1,13 @@
+services:
+  safe:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - safe_data:/app/data
+    environment:
+      DATABASE_URL: sqlite:////app/data/safe.sqlite3
+    restart: unless-stopped
+
+volumes:
+  safe_data:
