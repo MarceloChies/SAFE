@@ -1,4 +1,5 @@
 import cv2
+import requests
 
 from pathlib import Path
 
@@ -15,6 +16,12 @@ def main():
 
     if detector.empty():
         raise RuntimeError("Não foi possível carregar o detector.")
+
+
+    pessoa_id = int(input("ID da pessoa cadastrada: "))
+    url = f"http://127.0.0.1:8000/pessoas/{pessoa_id}/imagens"
+
+
     camera = cv2.VideoCapture(0)
 
     try:
@@ -40,6 +47,8 @@ def main():
                 minSize=(30, 30),
             )
 
+            frame_original = frame.copy()
+
             for x, y, largura, altura in rostos:
                 cv2.rectangle(
                     frame,
@@ -51,8 +60,48 @@ def main():
 
             cv2.imshow("SAFE - Webcam", frame)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            tecla = cv2.waitKey(1) & 0xFF
+
+            if tecla == ord("q"):
                 break
+
+            if tecla == ord("c"):
+                if len(rostos) != 1:
+                    print("A captura deve conter exatamente um rosto.")
+                    continue
+
+                sucesso, imagem = cv2.imencode(
+                    ".jpg",
+                    frame_original,
+                )
+
+                if not sucesso:
+                    print("Não foi possível gerar a foto.")
+                    continue
+
+                try:
+                    resposta = requests.post(
+                        url,
+                        files={
+                            "arquivo": (
+                                "webcam.jpg",
+                                imagem.tobytes(),
+                                "image/jpeg",
+                            )
+                        },
+                        timeout=10,
+                    )
+
+                    if resposta.status_code == 201:
+                        print("Foto cadastrada:", resposta.json())
+                    else:
+                        print(
+                            "Erro no upload:",
+                            resposta.status_code,
+                            resposta.text,
+                        )
+                except requests.RequestException as erro:
+                    print("Não foi possível acessar a API:", erro)
 
     finally:
         camera.release()
