@@ -2,4 +2,7 @@ fastapi
 uvicorn
 alembic
 sqlalchemy
+pytest
+httpx2
 opencv-contrib-python
+python-multipart
