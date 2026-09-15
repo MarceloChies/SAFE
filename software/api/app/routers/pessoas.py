@@ -1,10 +1,12 @@
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     HTTPException,
     Query,
     Response,
     status,
+    UploadFile,
 )
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,14 @@ from app.services import pessoa as pessoa_service
 from app.services.pessoa import (
     PessoaDuplicada,
     PessoaNaoEncontrada,
+)
+
+from app.schemas.imagem_facial import ImagemFacialResposta
+from app.services import imagem_facial as imagem_facial_service
+from app.services.imagem_facial import (
+    TAMANHO_MAXIMO,
+    ImagemFacialInvalida,
+    criar_imagem_facial,
 )
 
 
@@ -133,3 +143,51 @@ def excluir_pessoa(
     return Response(
         status_code=status.HTTP_204_NO_CONTENT
     )
+
+@router.post(
+    "/{pessoa_id}/imagens",
+    response_model=ImagemFacialResposta,
+    status_code=status.HTTP_201_CREATED,
+)
+def enviar_imagem_facial(
+    pessoa_id: int,
+    arquivo: UploadFile = File(...),
+    database: Session = Depends(get_db),
+):
+    try:
+        dados = arquivo.file.read(TAMANHO_MAXIMO+1)
+
+        return criar_imagem_facial(
+            database,
+            pessoa_id,
+            dados,
+        )
+    except PessoaNaoEncontrada as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(erro),
+        )from erro
+    except ImagemFacialInvalida as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(erro),
+        )from erro
+    finally:
+        arquivo.file.close()
+
+
+@router.get(
+    "/{pessoa_id}/imagens",
+    response_model=list[ImagemFacialResposta],
+)
+def listar_imagens(
+    pessoa_id: int,
+    database: Session =Depends(get_db),
+):
+    try:
+        return imagem_facial_service.listar_imagens(database, pessoa_id)
+    except PessoaNaoEncontrada as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(erro)
+        )from erro
