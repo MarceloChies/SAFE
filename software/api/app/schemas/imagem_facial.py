@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-class ImagemFacial(BaseModel):
+class ImagemFacialResposta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id:int 

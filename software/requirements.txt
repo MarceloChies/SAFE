@@ -4,5 +4,5 @@ alembic
 sqlalchemy
 pytest
 httpx2
-opencv-contrib-python
+opencv-contrib-python-headless
 python-multipart

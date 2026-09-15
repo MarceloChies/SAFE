@@ -1,11 +1,16 @@
 import cv2
 import numpy as np
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.imagem_facial import ImagemFacial
+from app.services.pessoa import buscar_pessoa
+
 TAMANHO_MAXIMO = 5 * 1024 * 1024
 
 class ImagemFacialInvalida(ValueError):
     pass
-
 
 
 def validar_imagem(dados: bytes) -> tuple[str, int, int]:
@@ -44,3 +49,46 @@ def validar_imagem(dados: bytes) -> tuple[str, int, int]:
 
     return tipo_mime, largura, altura
 
+
+def criar_imagem_facial(
+    database:Session,
+    pessoa_id: int,
+    dados: bytes,
+) -> ImagemFacial:
+    pessoa = buscar_pessoa(database, pessoa_id)
+
+    tipo_mime, largura, altura = validar_imagem(dados)
+
+    imagem = ImagemFacial(
+        pessoa_id= pessoa.id,
+        dados=dados,
+        tipo_mime=tipo_mime,
+        largura=largura,
+        altura=altura,
+    )
+
+    database.add(imagem)
+
+    try:
+        database.commit()
+    except Exception:
+        database.rollback()
+        raise
+
+    database.refresh(imagem)
+
+    return imagem
+
+def listar_imagens(
+    database:Session,
+    pessoa_id: int,
+) -> list[ImagemFacial]:
+    buscar_pessoa(database, pessoa_id)
+
+    consulta =(
+        select(ImagemFacial)
+        .where(ImagemFacial.pessoa_id == pessoa_id)
+        .order_by(ImagemFacial.id)
+    )
+
+    return list(database.scalars(consulta).all())
