@@ -1,9 +1,8 @@
-from pathlib import Path
-
 import cv2
 import numpy as np
 import requests
 
+from pathlib import Path
 
 API_URL = "http://127.0.0.1:8000"
 TAMANHO_ROSTO = (200, 200)
@@ -87,6 +86,7 @@ def carregar_referencias(detector):
                 x:x + largura,
             ]
             rosto = cv2.resize(rosto, TAMANHO_ROSTO)
+            rosto = cv2.equalizeHist(rosto)
 
             rostos_treinamento.append(rosto)
             identificadores.append(pessoa_id)
@@ -115,3 +115,91 @@ def carregar_referencias(detector):
     )
 
     return reconhecedor, nomes
+
+def main():
+    detector = criar_detector()
+    reconhecedor, nomes = carregar_referencias(detector)
+
+    camera = cv2.VideoCapture(0)
+
+    if not camera.isOpened():
+        raise RuntimeError("Não foi possível abrir a webcam.")
+
+    try:
+        while True:
+            sucesso, frame = camera.read()
+
+            if not sucesso:
+                print("Não foi possível capturar o frame.")
+                break
+
+            imagem_cinza = cv2.cvtColor(
+                frame,
+                cv2.COLOR_BGR2GRAY,
+            )
+
+            rostos = detector.detectMultiScale(
+                imagem_cinza,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30),
+            )
+
+            for x, y, largura, altura in rostos:
+                rosto = imagem_cinza[
+                    y:y + altura,
+                    x:x + largura,
+                ]
+                rosto = cv2.resize(
+                    rosto,
+                    TAMANHO_ROSTO,
+                )
+
+                pessoa_id, distancia = reconhecedor.predict(
+                    rosto
+                )
+
+                if pessoa_id != -1 and pessoa_id in nomes:
+                    texto = (
+                        f"{nomes[pessoa_id]} "
+                        f"({distancia:.1f})"
+                    )
+                    cor = (0, 255, 0)
+                else:
+                    texto = "Nao reconhecido"
+                    cor = (0, 0, 255)
+
+                cv2.rectangle(
+                    frame,
+                    (x, y),
+                    (x + largura, y + altura),
+                    cor,
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    texto,
+                    (x, max(y - 10, 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    cor,
+                    2,
+                )
+
+            cv2.imshow(
+                "SAFE - Reconhecimento facial",
+                frame,
+            )
+
+            tecla = cv2.waitKey(1) & 0xFF
+
+            if tecla == ord("q"):
+                break
+    finally:
+        camera.release()
+        cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
