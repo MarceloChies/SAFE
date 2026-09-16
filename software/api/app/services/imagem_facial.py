@@ -13,6 +13,9 @@ TAMANHO_MAXIMO = 5 * 1024 * 1024
 class ImagemFacialInvalida(ValueError):
     pass
 
+class ImagemFacialNaoEncontrada(Exception):
+    pass
+
 
 def validar_imagem(dados: bytes) -> tuple[str, int, int]:
     if not dados:
@@ -107,3 +110,24 @@ def listar_imagens(
     )
 
     return list(database.scalars(consulta).all())
+
+
+def buscar_imagens(
+    database: Session,
+    pessoa_id: int,
+    imagem_id: int,
+) -> ImagemFacial: 
+    buscar_pessoa(database, pessoa_id)
+
+    consulta = select(ImagemFacial).where(
+        ImagemFacial.id == imagem_id,
+        ImagemFacial.pessoa_id == pessoa_id,
+    )
+    imagem = database.scalar(consulta)
+
+    if imagem is None:
+        raise ImagemFacialNaoEncontrada(
+            "Imagem facial nao encontrada"
+        )
+
+    return imagem
