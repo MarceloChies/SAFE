@@ -4,6 +4,10 @@ import requests
 
 from pathlib import Path
 
+from collections import deque
+
+from controle_acesso import liberar_acesso
+
 API_URL = "http://127.0.0.1:8000"
 TAMANHO_ROSTO = (200, 200)
 
@@ -119,6 +123,8 @@ def carregar_referencias(detector):
 def main():
     detector = criar_detector()
     reconhecedor, nomes = carregar_referencias(detector)
+    historico = deque(maxlen=10)
+    ultimo_confirmado = None
 
     camera = cv2.VideoCapture(0)
 
@@ -145,7 +151,13 @@ def main():
                 minSize=(30, 30),
             )
 
-            for x, y, largura, altura in rostos:
+            if len(rostos) != 1:
+                historico.clear()
+                ultimo_confirmado = None
+
+            for x, y, largura, altura in (
+                rostos if len(rostos) == 1 else []
+            ):
                 rosto = imagem_cinza[
                     y:y + altura,
                     x:x + largura,
@@ -155,19 +167,38 @@ def main():
                     TAMANHO_ROSTO,
                 )
 
+                rosto = cv2.equalizeHist(rosto)
+
                 pessoa_id, distancia = reconhecedor.predict(
                     rosto
                 )
 
-                if pessoa_id != -1 and pessoa_id in nomes:
+                historico.append(pessoa_id)
+                ocorrencias = historico.count(pessoa_id)
+                confirmado = (
+                    pessoa_id != -1
+                    and pessoa_id in nomes
+                    and ocorrencias >= 7
+                )
+
+                if confirmado:
                     texto = (
-                        f"{nomes[pessoa_id]} "
+                        f"Acesso permitido: {nomes[pessoa_id]} "
                         f"({distancia:.1f})"
                     )
                     cor = (0, 255, 0)
-                else:
+
+                    if ultimo_confirmado != pessoa_id:
+                        print("Pessoa reconhecida:", nomes[pessoa_id])
+                        liberar_acesso(nomes[pessoa_id])
+                        ultimo_confirmado = pessoa_id
+                elif pessoa_id == -1:
                     texto = "Nao reconhecido"
                     cor = (0, 0, 255)
+                    ultimo_confirmado = None
+                else:
+                    texto = "Validando..."
+                    cor = (0, 255, 255)
 
                 cv2.rectangle(
                     frame,
